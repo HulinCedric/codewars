@@ -1,9 +1,8 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using Xunit;
 
@@ -54,6 +53,8 @@ public class SolutionTest
     [Theory]
     [InlineData(@".''.", "")]
     [InlineData(@".'a'.", "'a'")]
+    [InlineData(@".''a'.", "''a'")]
+    [InlineData(@".a''a'.", "a''a'")]
     [InlineData("  '''  ", "")]
     [InlineData("''' don't.want#", "don't want")]
     public void BeEmptyWordWhenContainingNoLetter(string text, string value)
@@ -74,7 +75,7 @@ public static class TopWords
     }
 }
 
-public class Words : IEnumerable<Word>
+public record Words : IEnumerable<Word>
 {
     private readonly IImmutableList<Word> words;
 
@@ -103,46 +104,15 @@ public class Words : IEnumerable<Word>
 public record Word
 {
     public static readonly Word Empty = new(string.Empty);
+
     private readonly string value;
 
     private Word(string text)
         => value = text;
 
     public static IEnumerable<Word> ExtractWords(string sentence)
-        => Sanitize(sentence)
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Select(w => new Word(w));
-
-    private static string Sanitize(string text)
-    {
-        text = ReplaceNotPartOfWordCharactersByWhitespace(text);
-        text = ReplaceTextWithoutLetterByWhitespaces(text);
-        return text.ToLowerInvariant();
-    }
-
-    private static string ReplaceNotPartOfWordCharactersByWhitespace(string text)
-    {
-        var stringBuilder = new StringBuilder();
-        foreach (var character in text)
-            stringBuilder.Append(IsWordCharacter(character) ? character : ' ');
-
-        return stringBuilder.ToString();
-    }
-
-    private static bool IsWordCharacter(char character)
-        => char.IsLetter(character) || character == '\'';
-
-    private static string ReplaceTextWithoutLetterByWhitespaces(string text)
-        => string.Join(' ', text.Split(' ').Select(GetEquivalentWhitespacesWhenTextNotContainsLetter));
-
-    private static string GetEquivalentWhitespacesWhenTextNotContainsLetter(string text)
-    {
-        var containsLetter = text.Any(char.IsLetter);
-        return containsLetter ? text : ReplaceAllCharacterByWhitespace(text);
-    }
-
-    private static string ReplaceAllCharacterByWhitespace(string text)
-        => new(Enumerable.Repeat(' ', text.Length).ToArray());
+        => Regex.Matches(sentence.ToLowerInvariant(), @"('*[a-z]'*)+")
+            .Select(match => new Word(match.Value));
 
     public override string ToString()
         => value;
